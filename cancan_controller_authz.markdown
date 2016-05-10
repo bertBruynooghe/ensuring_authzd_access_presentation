@@ -1,0 +1,2 @@
+# CanCan Controller Authorization
+
