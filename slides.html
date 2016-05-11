@@ -63,6 +63,7 @@
 <code>Create</code> action</h2>
   should authorize the resource right before <code>#save</code>
   <pre class="fragment"><code>subject(:query) { post :create, project: { dummy: 1 } }
+before { allow(Project).to receive(:new).and_return(instance) }
 
 it 'checks authorization right before #save' do
   expect(controller)
@@ -76,11 +77,12 @@ end
   <h2>
 <code>Show</code> action</h2>
   should authorize the resulting member instance
-  <pre class="fragment"><code>before do
-  allow(Project).to receive(:method_missing)
-    .with(:find, id.to_s).once.and_return(instance)
+  <pre class="fragment"><code>subject(:request) { get :show, id: id }
+
+before do
+  allow(Project).to receive(:find).with(id.to_s).and_return(instance)
+  allow(controller).to receive(:authorize!)
 end
-subject(:request) { get :show, id: id }
 
 it 'checks authorization right after #find' do
   expect(controller).to receive(:authorize!).with(:show, instance)
@@ -100,7 +102,9 @@ end
   <pre class="fragment"><code>subject(:request) { get :index }
 
 before do
- allow(Project).to receive(:method_missing).and_return Project
+  allow(Project).to receive(:method_missing).and_return Project
+  allow(relation).to receive(:method_missing).and_return relation
+  allow(Project).to receive(:accessible_by).and_return relation
 end
 
 it 'fetches authorized items' do
@@ -110,7 +114,6 @@ it 'fetches authorized items' do
 end
 
 it 'contains the authorized items in the collection instance' do
-  allow(Project).to receive(:accessible_by).and_return relation
   request
   expect(assigns(:projects)).to eq relation
 end
@@ -121,6 +124,11 @@ end
 <code>Edit</code> action</h2>
   should authorize the resulting member instance
   <pre class="fragment"><code>subject(:request) { get :edit, id: id }
+
+before do
+  allow(Project).to receive(:find).with(id.to_s).and_return(instance)
+  allow(controller).to receive(:authorize!)
+end
 
 it 'checks authorization right after #find' do
   expect(controller).to receive(:authorize!).with(:edit, instance)
@@ -140,10 +148,14 @@ end
     should authorize right after <code>#find</code>
     <pre class="fragment"><code>subject(:request) { put :update, id: id, project: { dummy: 1 } }
 
+before do
+  allow(Project).to receive(:find).with(id.to_s).and_return(instance)
+end
+
 it 'checks authorization as first step' do
-  expect(controller)
-    .to receive(:authorize!).with(:edit, instance).ordered
-  expect(instance).to receive(:method_missing).ordered
+  expect(controller).to receive(:authorize!).with(:edit, instance) do
+    allow(instance).to receive(:method_missing)
+  end
   request
 end
 </code></pre>
@@ -154,11 +166,16 @@ end
     should authorize the updated resource right before <code>#save</code>
     <pre class="fragment"><code>subject(:request) { put :update, id: id, project: { dummy: 1 } }
 
+before do
+  allow(Project).to receive(:find).with(id.to_s).and_return(instance)
+  allow(controller).to receive(:authorize!)
+end
+
 it 'checks authorization right before final #save' do
-  expect(instance).to receive(:attributes=).ordered
+  allow(instance).to receive(:attributes=).and_return altered_instance
   expect(controller)
-    .to receive(:authorize!).with(:update, instance).ordered
-  expect(instance).to receive(:save).ordered.and_return false
+    .to receive(:authorize!).with(:update, altered_instance).ordered
+  expect(altered_instance).to receive(:save).ordered.and_return false
   request
 end</code></pre>
   </section>
@@ -175,12 +192,18 @@ authorize! :update, @project</code></pre>
 </section>
 <section>
   <h2><code>Destroy</code></h2>
-  should authorize the resource right before <code>#destroy</code>
+  should authorize the resource right after <code>#find</code>
   <pre class="fragment"><code>subject(:request) { delete :destroy, id: id }
 
+before do
+  allow(Project).to receive(:find).with(id.to_s).and_return(instance)
+  allow(controller).to receive(:authorize!)
+end
+
 it 'checks authorization right after #find' do
-  expect(controller).to receive(:authorize!).with(:destroy, instance).ordered
-  expect(instance).to receive(:destroy).ordered
+  expect(controller).to receive(:authorize!).with(:destroy, instance) do
+    allow(instance).to receive(:method_missing).ordered
+  end
   request
 end
 </code></pre>
