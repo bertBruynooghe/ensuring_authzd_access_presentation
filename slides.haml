@@ -1,0 +1,121 @@
+%section
+  %h1 Route
+  %h1 Access Control
+  %h2 using CanCan
+  by Bert Bruynooghe
+
+%section
+  %h2 controller =
+  %h2 user interaction handler
+  %h3 &#8594; needs tamperproof
+  %h3 access authorization
+  %aside.notes
+    By focusing too much on the views when manually testing our app, we tend to forget we sometimes left backdoors
+    that can be exploited by manually sending http requests from the browser.
+
+%section
+  %h2 How?
+  %ol
+    %li.fragment
+      simplicity: less code = less breaching possibilities
+      %ul
+        %li.fragment skinny controllers
+        %li.fragment
+          %a(href="http://jeromedalbert.com/how-dhh-organizes-his-rails-controllers") pure REST controllers
+    %li.fragment tests
+
+%section
+  %h2 Tests
+  .fragment
+    %h4 Bake you own
+    (at your own peril)
+  %h4.fragment or
+  .fragment
+    %h4 reuse:
+    :markdown
+      [upnxt_resources](https://bitbucket.org/unifiedpost/upnxt_frontend_resources) gem's
+      ```cancan::controller_authz_spec``` rails generator
+<\p>
+
+%section
+  %section
+    %h2 Tests for pure rest controllers
+    new &#x2022 create &#x2022 show &#x2022 index &#x2022 edit &#x2022 update &#x2022 destroy
+  %section
+    %h2 Tests for pure rest controllers
+    <strike>new</strike> &#x2022 create &#x2022 show &#x2022 index &#x2022 edit &#x2022 update &#x2022 destroy
+
+%section
+  %h2 <code>Create</code> action
+  should authorize the resource right before <code>#save</code>
+  %pre.fragment
+    %code
+      :preserve
+        subject(:query) { post :create, project: { dummy: 1 } }
+
+        it 'checks authorization right before #save' do
+          expect(controller).to receive(:authorize!).with(:create, instance) do
+            allow(instance).to receive(:save)
+          end
+          query
+        end
+
+%section
+  %h2 <code>Show</code> action
+  should authorize the resulting member instance
+  %pre.fragment
+    %code
+      :preserve
+        before do
+          allow(Project).to receive(:method_missing)
+            .with(:find, id.to_s).once.and_return(instance)
+        end
+        subject(:request) { get :show, id: id }
+
+        it 'checks authorization right after #find' do
+          expect(controller).to receive(:authorize!).with(:show, instance)
+          request
+        end
+
+        it 'contains the authorized item in the instance' do
+          request
+          expect(assigns(:project)).to eq instance
+        end
+
+%section
+  %h2 <code>Index</code> action
+  should take rules into account on query
+
+%section
+  %h2 <code>Edit</code> action
+  should authorize the resulting member instance
+
+%section
+  %section
+    %h2 <code>Update</code> action
+    should authorize right after <code>#find</code>
+  %section
+    %h2 <code>Update</code> action
+    should authorize the updated resource right before <code>#save</code>
+  %section
+    %h2 <code>Update</code> action
+    as in <a href="https://github.com/CanCanCommunity/cancancan/wiki/Controller-Authorization-Example"><code>cancan</code> <code>load_and_authorize_resource</code></a>:
+    %pre.fragment
+      %code
+        :preserve
+          @project = Project.find(params[:id])
+          authorize! :update, @project
+    .fragment :warning: :zap: :bomb: :skull:
+
+%section
+  %h2 <code>Destroy</code>
+  should authorize the resource right before <code>#destroy</code>
+%section
+  %h2 Preventing future accidental backdoors
+  if new routes get added, we should have new tests too
+
+%section
+  %h2 Future
+  %ul
+    %li release as separate gem on github?
+    %li support for nested resources
