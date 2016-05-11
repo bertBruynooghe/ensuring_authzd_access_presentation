@@ -1,0 +1,137 @@
+<section>
+  <h1>Route</h1>
+  <h1>Access Control</h1>
+  <h2>using CanCan</h2>
+  by Bert Bruynooghe
+</section>
+<section>
+  <h2>controller =</h2>
+  <h2>user interaction handler</h2>
+  <h3>→ needs tamperproof</h3>
+  <h3>access authorization</h3>
+  <aside class="notes">
+    By focusing too much on the views when manually testing our app, we tend to forget we sometimes left backdoors
+    that can be exploited by manually sending http requests from the browser.
+  </aside>
+</section>
+<section>
+  <h2>How?</h2>
+  <ol>
+    <li class="fragment">
+      simplicity: less code = less breaching possibilities
+      <ul>
+        <li class="fragment">skinny controllers</li>
+        <li class="fragment">
+          <a href="http://jeromedalbert.com/how-dhh-organizes-his-rails-controllers">pure REST controllers</a>
+        </li>
+      </ul>
+    </li>
+    <li class="fragment">tests</li>
+  </ol>
+</section>
+<section>
+  <h2>Tests</h2>
+  <div class="fragment">
+    <h4>Bake you own</h4>
+    (at your own peril)
+  </div>
+  <h4 class="fragment">or</h4>
+  <div class="fragment">
+    <h4>reuse:</h4>
+    <p><a href="https://bitbucket.org/unifiedpost/upnxt_frontend_resources">upnxt_resources</a> gem's
+    <code>cancan::controller_authz_spec</code> rails generator</p>
+  </div>
+</section>
+
+<section>
+  <section>
+    <h2>Tests for pure rest controllers</h2>
+    new • create • show • index • edit • update • destroy
+  </section>
+  <section>
+    <h2>Tests for pure rest controllers</h2>
+    <strike>new</strike> • create • show • index • edit • update • destroy
+  </section>
+</section>
+<section>
+  <h2>
+<code>Create</code> action</h2>
+  should authorize the resource right before <code>#save</code>
+  <pre class="fragment"><code>subject(:query) { post :create, project: { dummy: 1 } }
+
+it 'checks authorization right before #save' do
+  expect(controller).to receive(:authorize!).with(:create, instance) do
+    allow(instance).to receive(:save)
+  end
+  query
+end
+</code></pre>
+</section>
+<section>
+  <h2>
+<code>Show</code> action</h2>
+  should authorize the resulting member instance
+  <pre class="fragment"><code>before do
+  allow(Project).to receive(:method_missing)
+    .with(:find, id.to_s).once.and_return(instance)
+end
+subject(:request) { get :show, id: id }
+
+it 'checks authorization right after #find' do
+  expect(controller).to receive(:authorize!).with(:show, instance)
+  request
+end
+
+it 'contains the authorized item in the instance' do
+  request
+  expect(assigns(:project)).to eq instance
+end
+</code></pre>
+</section>
+<section>
+  <h2>
+<code>Index</code> action</h2>
+  should take rules into account on query
+</section>
+<section>
+  <h2>
+<code>Edit</code> action</h2>
+  should authorize the resulting member instance
+</section>
+<section>
+  <section>
+    <h2>
+<code>Update</code> action</h2>
+    should authorize right after <code>#find</code>
+  </section>
+  <section>
+    <h2>
+<code>Update</code> action</h2>
+    should authorize the updated resource right before <code>#save</code>
+  </section>
+  <section>
+    <h2>
+<code>Update</code> action</h2>
+    as in <a href="https://github.com/CanCanCommunity/cancancan/wiki/Controller-Authorization-Example"><code>cancan</code> <code>load_and_authorize_resource</code></a>:
+    <pre class="fragment"><code>@project = Project.find(params[:id])
+authorize! :update, @project</code></pre>
+    <div class="fragment">
+<img class="emoji" alt=":warning:" src="https://assets-cdn.github.com/images/icons/emoji/unicode/26a0.png"> <img class="emoji" alt=":zap:" src="https://assets-cdn.github.com/images/icons/emoji/unicode/26a1.png"> <img class="emoji" alt=":bomb:" src="https://assets-cdn.github.com/images/icons/emoji/unicode/1f4a3.png"> <img class="emoji" alt=":skull:" src="https://assets-cdn.github.com/images/icons/emoji/unicode/1f480.png">
+</div>
+  </section>
+</section>
+<section>
+  <h2><code>Destroy</code></h2>
+  should authorize the resource right before <code>#destroy</code>
+</section>
+<section>
+  <h2>Preventing future accidental backdoors</h2>
+  if new routes get added, we should have new tests too
+</section>
+<section>
+  <h2>Future</h2>
+  <ul>
+    <li>release as separate gem on github?</li>
+    <li>support for nested resources</li>
+  </ul>
+</section>
