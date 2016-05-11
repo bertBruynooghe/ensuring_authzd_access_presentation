@@ -1,8 +1,8 @@
 %section
-  %h1 Route
-  %h1 Access Control
-  %h2 using CanCan
-  by Bert Bruynooghe
+  %h1 Ensuring
+  %h1 Authorized Access
+  %h2 in Rails apps
+  by @bertbruynooghe
 
 %section
   %h2 controller =
@@ -12,6 +12,7 @@
   %aside.notes
     By focusing too much on the views when manually testing our app, we tend to forget we sometimes left backdoors
     that can be exploited by manually sending http requests from the browser.
+    Even CanCan leaves holes.
 
 %section
   %h2 How?
@@ -27,7 +28,7 @@
 %section
   %h2 Tests
   .fragment
-    %h4 Bake you own
+    %h4 Bake your own
     (at your own peril)
   %h4.fragment or
   .fragment
@@ -44,6 +45,9 @@
   %section
     %h2 Tests for pure rest controllers
     <strike>new</strike> &#x2022 create &#x2022 show &#x2022 index &#x2022 edit &#x2022 update &#x2022 destroy
+    %aside.notes
+      Absence of authorization clauses in the <code>new</code> action do never compromise authorized access;
+      they are there due to UX concerns.
 
 %section
   %h2 <code>Create</code> action
@@ -54,9 +58,9 @@
         subject(:query) { post :create, project: { dummy: 1 } }
 
         it 'checks authorization right before #save' do
-          expect(controller).to receive(:authorize!).with(:create, instance) do
-            allow(instance).to receive(:save)
-          end
+          expect(controller)
+            .to receive(:authorize!).with(:create, instance).ordered
+          expect(instance).to receive(:save).ordered
           query
         end
 
@@ -85,18 +89,76 @@
 %section
   %h2 <code>Index</code> action
   should take rules into account on query
+  %pre.fragment
+    %code
+      :preserve
+        subject(:request) { get :index }
+
+        before do
+         allow(Project).to receive(:method_missing).and_return Project
+        end
+
+        it 'fetches authorized items' do
+          expect(Project)
+            .to receive(:accessible_by).with(current_ability, :index)
+          request
+        end
+
+        it 'contains the authorized items in the collection instance' do
+          allow(Project).to receive(:accessible_by).and_return relation
+          request
+          expect(assigns(:projects)).to eq relation
+        end
 
 %section
   %h2 <code>Edit</code> action
   should authorize the resulting member instance
+  %pre.fragment
+    %code
+      :preserve
+        subject(:request) { get :edit, id: id }
+
+        it 'checks authorization right after #find' do
+          expect(controller).to receive(:authorize!).with(:edit, instance)
+          request
+        end
+
+        it 'contains the authorized item in the instance' do
+          request
+          expect(assigns(:project)).to eq instance
+        end
 
 %section
   %section
     %h2 <code>Update</code> action
     should authorize right after <code>#find</code>
+    %pre.fragment
+      %code
+        :preserve
+          subject(:request) { put :update, id: id, project: { dummy: 1 } }
+
+          it 'checks authorization as first step' do
+            expect(controller)
+              .to receive(:authorize!).with(:edit, instance).ordered
+            expect(instance).to receive(:method_missing).ordered
+            request
+          end
+
   %section
     %h2 <code>Update</code> action
     should authorize the updated resource right before <code>#save</code>
+    %pre.fragment
+      %code
+        :preserve
+          subject(:request) { put :update, id: id, project: { dummy: 1 } }
+
+          it 'checks authorization right before final #save' do
+            expect(instance).to receive(:attributes=).ordered
+            expect(controller)
+              .to receive(:authorize!).with(:update, instance).ordered
+            expect(instance).to receive(:save).ordered.and_return false
+            request
+          end
   %section
     %h2 <code>Update</code> action
     as in <a href="https://github.com/CanCanCommunity/cancancan/wiki/Controller-Authorization-Example"><code>cancan</code> <code>load_and_authorize_resource</code></a>:
@@ -110,12 +172,37 @@
 %section
   %h2 <code>Destroy</code>
   should authorize the resource right before <code>#destroy</code>
+  %pre.fragment
+    %code
+      :preserve
+        subject(:request) { delete :destroy, id: id }
+
+        it 'checks authorization right after #find' do
+          expect(controller).to receive(:authorize!).with(:destroy, instance).ordered
+          expect(instance).to receive(:destroy).ordered
+          request
+        end
+
 %section
   %h2 Preventing future accidental backdoors
   if new routes get added, we should have new tests too
+  %pre.fragment
+    %code
+      :preserve
+        context 'route for' do
+          Rails.application.routes.routes.map(&:requirements).each do |r|
+            describe "#\#{r[:action]}" do
+              it 'is guarded by authorization' do
+                expect(%w(index show))
+                  .to include(r[:action]), "there is probably no (registered) test for \#{r[:action]}"
+              end
+            end if r[:controller] == 'projects'
+          end
+        end
 
 %section
   %h2 Future
   %ul
+    %li generate specs for all controllers mentioned in <code>routes.rb</code>
     %li release as separate gem on github?
     %li support for nested resources
